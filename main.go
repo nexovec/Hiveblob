@@ -64,7 +64,7 @@ func run() {
 	// set-up physics
 	gravityVector := box2d.B2Vec2{
 		X: 0.0,
-		Y: 0.0}
+		Y: -1.0}
 	world := box2d.MakeB2World(gravityVector)
 
 	groundBodyDef := box2d.MakeB2BodyDef()
@@ -73,27 +73,35 @@ func run() {
 	groundShape := box2d.MakeB2PolygonShape()
 	groundShape.SetAsBox(15.0, 3.0)
 
-	groundFixture := box2d.MakeB2Fixture()
-	groundFixture.SetDensity(0.0)
-	groundFixture.M_shape = &groundShape
+	groundFixtureDef := box2d.MakeB2FixtureDef()
+	groundFixtureDef.Density = 0.0
+	groundFixtureDef.Friction = 0.0
+	groundFixtureDef.Shape = &groundShape
+
+	// groundFixture := box2d.MakeB2Fixture()
+	// groundFixture.SetDensity(0.0)
+	// groundFixture.M_shape = &groundShape
 
 	groundBody := world.CreateBody(&groundBodyDef)
-	groundBody.CreateFixture(&groundShape, 0.0)
+	// groundBody.CreateFixture(&groundShape, 0.0)
+	groundBody.CreateFixtureFromDef(&groundFixtureDef)
 
 	playerBodyDef := box2d.MakeB2BodyDef()
 	// playerBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
-	playerBodyDef.Position.Set(23.0, 4.0)
+	playerBodyDef.Position.Set(23.0, 23.0)
 
 	playerShape := box2d.MakeB2PolygonShape()
 	playerShape.SetAsBox(1.0, 2.0)
 
 	playerFixtureDef := box2d.MakeB2FixtureDef()
-	playerFixtureDef.Density = 1.0
-	playerFixtureDef.Friction = 0.3
+	playerFixtureDef.Density = 0.0
+	playerFixtureDef.Friction = 0.0
 	playerFixtureDef.Shape = &playerShape
 
 	playerBody := world.CreateBody(&playerBodyDef)
 	playerBody.CreateFixtureFromDef(&playerFixtureDef)
+
+	bodies := []*box2d.B2Body{groundBody, playerBody}
 
 	// gameObjects := struct
 	for !window.Closed() {
@@ -113,34 +121,39 @@ func run() {
 		// 	ctx.Draw(window)
 		// }
 		DRAW_PHYSICS_OBJ_OUTLINES := true
+		BOX2D_RENDERING_SCALE := 10.0
 		if DRAW_PHYSICS_OBJ_OUTLINES {
-			DEBUG_fixture := groundBody.GetFixtureList()
-			if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
-				shape := DEBUG_fixture.GetShape()
-				shape.Clone()
-				polygon := shape.(*box2d.B2PolygonShape)
-				vertices := polygon.M_vertices
-				for i := 0; i < polygon.M_count; i++ {
-					vertex := vertices[i]
-					nextVertex := vertices[(i+1)%polygon.M_count]
-					position := groundBody.GetWorldPoint(vertex)
-					nextPosition := groundBody.GetWorldPoint(nextVertex)
-					BOX2D_RENDERING_SCALE := 10.0
-					p1 := pixel.V(position.X, position.Y).Scaled(BOX2D_RENDERING_SCALE)
-					p2 := pixel.V(nextPosition.X, nextPosition.Y).Scaled(BOX2D_RENDERING_SCALE)
-					// line := pixel.Line{
-					// 	p1,
-					// 	p2,
-					// }
-					ctx := imdraw.New(nil)
-					ctx.Color = colornames.Black
-					fmt.Println(p1, p2)
-					ctx.Push(p1, p2)
-					ctx.Line(5.0)
+			ctx := imdraw.New(nil)
+			for _, body := range bodies {
+				DEBUG_fixture := body.GetFixtureList()
+				if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
+					shape := DEBUG_fixture.GetShape()
+					shape.Clone()
+					polygon := shape.(*box2d.B2PolygonShape)
+					vertices := polygon.M_vertices
+					ctx.Reset()
+					for i := 0; i < polygon.M_count; i++ {
+						vertex := vertices[i]
+						// vertex.OperatorScalarMulInplace(BOX2D_RENDERING_SCALE)
+						nextVertex := vertices[(i+1)%polygon.M_count]
+						// vertex.OperatorScalarMulInplace(BOX2D_RENDERING_SCALE)
+						position := body.GetWorldPoint(vertex)
+						nextPosition := groundBody.GetWorldPoint(nextVertex)
+						p1 := pixel.V(position.X, position.Y).Scaled(BOX2D_RENDERING_SCALE)
+						p2 := pixel.V(nextPosition.X, nextPosition.Y).Scaled(BOX2D_RENDERING_SCALE)
+						// line := pixel.Line{
+						// 	p1,
+						// 	p2,
+						// }
+						ctx.Color = colornames.Black
+						// fmt.Println(p1, p2)
+						ctx.Push(p1, p2)
+						ctx.Line(5.0)
+					}
 					ctx.Draw(window)
+				} else {
+					panic("Not implemented!")
 				}
-			} else {
-				panic("Not implemented!")
 			}
 		}
 
