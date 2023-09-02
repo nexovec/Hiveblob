@@ -32,8 +32,12 @@ type LaunchOptions struct {
 	displayVersion bool
 }
 
-var isVerbose bool
-var displayVersion bool
+var launchOptions = struct {
+	verbose     bool
+	showVersion bool
+	showFPS     bool
+	fullscreen  bool
+}{}
 
 func run() {
 	windowX := float64(0)
@@ -60,6 +64,9 @@ func run() {
 	// imgui.PushFont(ui.fonts.)
 
 	ticker := pixelutils.NewTicker(60)
+
+	BOX2D_RENDERING_SCALE := 10.0
+	transform := pixel.IM.Scaled(pixel.ZV, BOX2D_RENDERING_SCALE)
 
 	// set-up physics
 	gravityVector := box2d.B2Vec2{
@@ -98,7 +105,6 @@ func run() {
 
 	bodies := []*box2d.B2Body{groundBody, playerBody}
 
-	// gameObjects := struct
 	for !window.Closed() {
 
 		// game update
@@ -109,43 +115,27 @@ func run() {
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
 		// game rendering
 		window.Clear(colornames.Beige)
-		// DEBUG: render a circle out of on the screen.
-		// {
-		// 	ctx := imdraw.New(nil)
-		// 	ctx.Color = colornames.Black
-		// 	ctx.Push(pixel.V(100.0, 0.0))
-		// 	ctx.Circle(100.0, 100.0)
-		// 	ctx.Draw(window)
-		// }
 		DRAW_PHYSICS_OBJ_OUTLINES := true
-		BOX2D_RENDERING_SCALE := 10.0
 		if DRAW_PHYSICS_OBJ_OUTLINES {
 			ctx := imdraw.New(nil)
+			ctx.SetMatrix(transform)
 			for _, body := range bodies {
 				DEBUG_fixture := body.GetFixtureList()
 				if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
 					shape := DEBUG_fixture.GetShape()
-					shape.Clone()
 					polygon := shape.(*box2d.B2PolygonShape)
 					vertices := polygon.M_vertices
-					ctx.Reset()
+					// ctx.Reset()
 					for i := 0; i < polygon.M_count; i++ {
 						vertex := vertices[i]
-						// vertex.OperatorScalarMulInplace(BOX2D_RENDERING_SCALE)
 						nextVertex := vertices[(i+1)%polygon.M_count]
-						// vertex.OperatorScalarMulInplace(BOX2D_RENDERING_SCALE)
 						position := body.GetWorldPoint(vertex)
 						nextPosition := body.GetWorldPoint(nextVertex)
-						p1 := pixel.V(position.X, position.Y).Scaled(BOX2D_RENDERING_SCALE)
-						p2 := pixel.V(nextPosition.X, nextPosition.Y).Scaled(BOX2D_RENDERING_SCALE)
-						// line := pixel.Line{
-						// 	p1,
-						// 	p2,
-						// }
+						p1 := pixel.V(position.X, position.Y)
+						p2 := pixel.V(nextPosition.X, nextPosition.Y)
 						ctx.Color = colornames.Black
-						// fmt.Println(p1, p2)
 						ctx.Push(p1, p2)
-						ctx.Line(5.0)
+						ctx.Line(5.0 / BOX2D_RENDERING_SCALE)
 					}
 					ctx.Draw(window)
 				} else {
@@ -177,22 +167,20 @@ func main() {
 	log.SetOutput(os.Stdout)
 	// parse executable arguments
 	rootCmd := cobra.Command{
-		Use:     "hiveblob [--version] [--verbose|--v]",
+		Use:     "hiveblob [--version] [--verbose|--v] [--fullscreen|--f] [--fps]",
 		Short:   "Hiveblob the game development build executable",
 		Example: "hiveblob --version",
 		Run: func(cmd *cobra.Command, args []string) {
-			if displayVersion {
+			if launchOptions.showVersion {
 				log.Default().Println("version:", VERSION)
 			}
 			pixelgl.Run(run)
 		},
 	}
 	{
-		verboseShortFlag, verboseLongFlag := false, false
-		rootCmd.Flags().BoolVar(&verboseLongFlag, "verbose", false, "hiveblob --verbose")
-		rootCmd.Flags().BoolVar(&verboseShortFlag, "v", false, "hiveblob --verbose")
-		isVerbose = verboseShortFlag || verboseLongFlag
-		rootCmd.Flags().BoolVar(&displayVersion, "version", false, "hiveblob --version")
+		rootCmd.Flags().BoolVarP(&launchOptions.verbose, "verbose", "v", false, "print more logs")
+		rootCmd.Flags().BoolVar(&launchOptions.showVersion, "version", false, "show version number")
+		rootCmd.Flags().BoolVar(&launchOptions.showFPS, "fps", false, "show frames per second in the corner")
 	}
 	if err := rootCmd.Execute(); err != nil {
 		log.Default().Fatalln(err)
