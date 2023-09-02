@@ -24,8 +24,10 @@ var WINDOW_TITLE = "Hiveblob"
 var WINDOW_HEIGHT float64 = 1080
 var WINDOW_ASPECT_RATIO float64 = 16.0 / 9.0
 
+var DRAW_PHYSICS_OBJ_OUTLINES = true
 var VELOCITY_ITERATIONS int = 6
 var POSITION_ITERATIONS int = 2
+var SPRINT_FORCE float64 = 700.0
 
 type LaunchOptions struct {
 	verbose        bool
@@ -75,14 +77,14 @@ func run() {
 	world := box2d.MakeB2World(gravityVector)
 
 	groundBodyDef := box2d.MakeB2BodyDef()
-	groundBodyDef.Position.Set(20.0, 10.0)
+	groundBodyDef.Position.Set(40.0, 10.0)
 
 	groundShape := box2d.MakeB2PolygonShape()
-	groundShape.SetAsBox(15.0, 3.0)
+	groundShape.SetAsBox(35.0, 3.0)
 
 	groundFixtureDef := box2d.MakeB2FixtureDef()
 	groundFixtureDef.Density = 0.0
-	groundFixtureDef.Friction = 0.0
+	groundFixtureDef.Friction = 3.0
 	groundFixtureDef.Shape = &groundShape
 
 	groundBody := world.CreateBody(&groundBodyDef)
@@ -97,11 +99,12 @@ func run() {
 
 	playerFixtureDef := box2d.MakeB2FixtureDef()
 	playerFixtureDef.Density = 1.0
-	playerFixtureDef.Friction = 0.1
+	playerFixtureDef.Friction = 6.0
 	playerFixtureDef.Shape = &playerShape
 
 	playerBody := world.CreateBody(&playerBodyDef)
 	playerBody.CreateFixtureFromDef(&playerFixtureDef)
+	playerBody.SetFixedRotation(true)
 
 	bodies := []*box2d.B2Body{groundBody, playerBody}
 
@@ -110,12 +113,16 @@ func run() {
 		// game update
 		ticker.Tick()
 		dt := ticker.Deltat()
-		log.Printf("Tick delta time: %5f", dt)
+		// log.Printf("Tick delta time: %5f", dt)
+		if window.Pressed(pixelgl.KeyD) {
+			playerBody.ApplyForce(box2d.MakeB2Vec2(SPRINT_FORCE, 0.0), playerBody.GetWorldCenter(), true)
+		} else if window.Pressed(pixelgl.KeyA) {
+			playerBody.ApplyForce(box2d.MakeB2Vec2(-SPRINT_FORCE, 0.0), playerBody.GetWorldCenter(), true)
+		}
 
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
 		// game rendering
 		window.Clear(colornames.Beige)
-		DRAW_PHYSICS_OBJ_OUTLINES := true
 		if DRAW_PHYSICS_OBJ_OUTLINES {
 			ctx := imdraw.New(nil)
 			ctx.SetMatrix(transform)
