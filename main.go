@@ -6,14 +6,14 @@ import (
 	"os"
 
 	pixelui "github.com/dusk125/pixelui"
-	"github.com/inkyblackness/imgui-go"
-	"golang.org/x/image/colornames"
+	imgui "github.com/inkyblackness/imgui-go"
+	colornames "golang.org/x/image/colornames"
 
 	// beep "github.com/faiface/beep"
 	box2d "github.com/E4/box2d"
 	pixelutils "github.com/dusk125/pixelutils"
 	pixel "github.com/faiface/pixel"
-	"github.com/faiface/pixel/imdraw"
+	imdraw "github.com/faiface/pixel/imdraw"
 	pixelgl "github.com/faiface/pixel/pixelgl"
 
 	cobra "github.com/spf13/cobra"
@@ -64,7 +64,7 @@ func run() {
 	// set-up physics
 	gravityVector := box2d.B2Vec2{
 		X: 0.0,
-		Y: -1.0}
+		Y: -10.0}
 	world := box2d.MakeB2World(gravityVector)
 
 	groundBodyDef := box2d.MakeB2BodyDef()
@@ -78,24 +78,19 @@ func run() {
 	groundFixtureDef.Friction = 0.0
 	groundFixtureDef.Shape = &groundShape
 
-	// groundFixture := box2d.MakeB2Fixture()
-	// groundFixture.SetDensity(0.0)
-	// groundFixture.M_shape = &groundShape
-
 	groundBody := world.CreateBody(&groundBodyDef)
-	// groundBody.CreateFixture(&groundShape, 0.0)
 	groundBody.CreateFixtureFromDef(&groundFixtureDef)
 
 	playerBodyDef := box2d.MakeB2BodyDef()
-	// playerBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
+	playerBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
 	playerBodyDef.Position.Set(23.0, 23.0)
 
 	playerShape := box2d.MakeB2PolygonShape()
 	playerShape.SetAsBox(1.0, 2.0)
 
 	playerFixtureDef := box2d.MakeB2FixtureDef()
-	playerFixtureDef.Density = 0.0
-	playerFixtureDef.Friction = 0.0
+	playerFixtureDef.Density = 1.0
+	playerFixtureDef.Friction = 0.1
 	playerFixtureDef.Shape = &playerShape
 
 	playerBody := world.CreateBody(&playerBodyDef)
@@ -107,7 +102,9 @@ func run() {
 	for !window.Closed() {
 
 		// game update
+		ticker.Tick()
 		dt := ticker.Deltat()
+		log.Printf("Tick delta time: %5f", dt)
 
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
 		// game rendering
@@ -138,7 +135,7 @@ func run() {
 						nextVertex := vertices[(i+1)%polygon.M_count]
 						// vertex.OperatorScalarMulInplace(BOX2D_RENDERING_SCALE)
 						position := body.GetWorldPoint(vertex)
-						nextPosition := groundBody.GetWorldPoint(nextVertex)
+						nextPosition := body.GetWorldPoint(nextVertex)
 						p1 := pixel.V(position.X, position.Y).Scaled(BOX2D_RENDERING_SCALE)
 						p2 := pixel.V(nextPosition.X, nextPosition.Y).Scaled(BOX2D_RENDERING_SCALE)
 						// line := pixel.Line{
@@ -160,6 +157,7 @@ func run() {
 		// UI goes here
 		ui.NewFrame()
 		imgui.Begin("Base")
+		// FIXME: https://github.com/dusk125/pixelui/issues/15
 		// imgui.PushFont(font)
 		imgui.Text("Placeholder text")
 		// imgui.PopFont()
@@ -176,14 +174,12 @@ func run() {
 
 func main() {
 	fmt.Println("LAUNCHING THE GAME.")
-	// runGame()
-	// panic("")
 	log.SetOutput(os.Stdout)
 	// parse executable arguments
 	rootCmd := cobra.Command{
-		Use:     "hiveblob [--version|--v]",
+		Use:     "hiveblob [--version] [--verbose|--v]",
 		Short:   "Hiveblob the game development build executable",
-		Example: "hiveblob --server",
+		Example: "hiveblob --version",
 		Run: func(cmd *cobra.Command, args []string) {
 			if displayVersion {
 				log.Default().Println("version:", VERSION)
@@ -191,8 +187,13 @@ func main() {
 			pixelgl.Run(run)
 		},
 	}
-	rootCmd.Flags().BoolVar(&isVerbose, "verbose", false, "hiveblob --verbose")
-	rootCmd.Flags().BoolVar(&displayVersion, "version", false, "hiveblob --version")
+	{
+		verboseShortFlag, verboseLongFlag := false, false
+		rootCmd.Flags().BoolVar(&verboseLongFlag, "verbose", false, "hiveblob --verbose")
+		rootCmd.Flags().BoolVar(&verboseShortFlag, "v", false, "hiveblob --verbose")
+		isVerbose = verboseShortFlag || verboseLongFlag
+		rootCmd.Flags().BoolVar(&displayVersion, "version", false, "hiveblob --version")
+	}
 	if err := rootCmd.Execute(); err != nil {
 		log.Default().Fatalln(err)
 	}
