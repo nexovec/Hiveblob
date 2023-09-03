@@ -27,7 +27,7 @@ var WINDOW_ASPECT_RATIO float64 = 16.0 / 9.0
 var DRAW_PHYSICS_OBJ_OUTLINES = true
 var VELOCITY_ITERATIONS int = 6
 var POSITION_ITERATIONS int = 2
-var SPRINT_FORCE float64 = 700.0
+var SPRINT_FORCE float64 = 1400.0
 
 type LaunchOptions struct {
 	verbose        bool
@@ -73,7 +73,7 @@ func run() {
 	// set-up physics
 	gravityVector := box2d.B2Vec2{
 		X: 0.0,
-		Y: -10.0}
+		Y: -100.0}
 	world := box2d.MakeB2World(gravityVector)
 
 	groundBodyDef := box2d.MakeB2BodyDef()
@@ -84,7 +84,7 @@ func run() {
 
 	groundFixtureDef := box2d.MakeB2FixtureDef()
 	groundFixtureDef.Density = 0.0
-	groundFixtureDef.Friction = 3.0
+	groundFixtureDef.Friction = 1.0
 	groundFixtureDef.Shape = &groundShape
 
 	groundBody := world.CreateBody(&groundBodyDef)
@@ -99,7 +99,7 @@ func run() {
 
 	playerFixtureDef := box2d.MakeB2FixtureDef()
 	playerFixtureDef.Density = 1.0
-	playerFixtureDef.Friction = 6.0
+	playerFixtureDef.Friction = 0.8
 	playerFixtureDef.Shape = &playerShape
 
 	playerBody := world.CreateBody(&playerBodyDef)
@@ -116,8 +116,12 @@ func run() {
 		// log.Printf("Tick delta time: %5f", dt)
 		if window.Pressed(pixelgl.KeyD) {
 			playerBody.ApplyForce(box2d.MakeB2Vec2(SPRINT_FORCE, 0.0), playerBody.GetWorldCenter(), true)
-		} else if window.Pressed(pixelgl.KeyA) {
+		}
+		if window.Pressed(pixelgl.KeyA) {
 			playerBody.ApplyForce(box2d.MakeB2Vec2(-SPRINT_FORCE, 0.0), playerBody.GetWorldCenter(), true)
+		}
+		if window.JustPressed(pixelgl.KeyW) {
+			playerBody.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(0.0, 255.0), true)
 		}
 
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
