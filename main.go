@@ -130,6 +130,17 @@ func run() {
 		if DRAW_PHYSICS_OBJ_OUTLINES {
 			ctx := imdraw.New(nil)
 			ctx.SetMatrix(transform)
+			// render box2d bounding boxes
+			ctx.Color = colornames.Indianred
+			for _, body := range bodies {
+				aabb := body.GetFixtureList().GetAABB(0)
+				startX, startY := aabb.LowerBound.X, aabb.LowerBound.Y
+				endX, endY := aabb.UpperBound.X, aabb.UpperBound.Y
+				ctx.Push(pixel.V(startX, startY), pixel.V(endX, endY))
+				ctx.Rectangle(0.0)
+			}
+			// render box2d body outlines
+			ctx.Color = colornames.Black
 			for _, body := range bodies {
 				DEBUG_fixture := body.GetFixtureList()
 				if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
@@ -144,7 +155,6 @@ func run() {
 						nextPosition := body.GetWorldPoint(nextVertex)
 						p1 := pixel.V(position.X, position.Y)
 						p2 := pixel.V(nextPosition.X, nextPosition.Y)
-						ctx.Color = colornames.Black
 						ctx.Push(p1, p2)
 						ctx.Line(5.0 / BOX2D_RENDERING_SCALE)
 					}
