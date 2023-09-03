@@ -114,6 +114,8 @@ func run() {
 		ticker.Tick()
 		dt := ticker.Deltat()
 		// log.Printf("Tick delta time: %5f", dt)
+
+		// handle controls
 		if window.Pressed(pixelgl.KeyD) {
 			playerBody.ApplyForce(box2d.MakeB2Vec2(SPRINT_FORCE, 0.0), playerBody.GetWorldCenter(), true)
 		}
@@ -125,6 +127,32 @@ func run() {
 		}
 
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
+
+		{
+			// filter out static box2d bodies - no reason, trying to copy them to a separate box2d world to simulate paths of thrown objects
+			staticBodies := []*box2d.B2Body{}
+			for _, body := range bodies {
+				// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
+				if body.GetType() == box2d.B2BodyType.B2_staticBody {
+					staticBodies = append(staticBodies, body)
+				}
+			}
+			// log.Println("Static body count: ", len(staticBodies))
+			futureSimWorld := box2d.MakeB2World(gravityVector)
+			for _, body := range staticBodies {
+				// copy body
+				bodyDef := box2d.MakeB2BodyDef()
+				bodyDef.Type = body.GetType()
+				bodyDef.Position = body.GetPosition()
+
+				body := futureSimWorld.CreateBody(&bodyDef)
+				for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
+					// TODO: test
+					body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
+				}
+			}
+		}
+
 		// game rendering
 		window.Clear(colornames.Beige)
 		if DRAW_PHYSICS_OBJ_OUTLINES {
