@@ -75,38 +75,67 @@ func run() {
 		X: 0.0,
 		Y: -100.0}
 	world := box2d.MakeB2World(gravityVector)
+	bodies := []*box2d.B2Body{}
+	var playerBody *box2d.B2Body
+	{
+		groundBodyDef := box2d.MakeB2BodyDef()
+		groundBodyDef.Position.Set(40.0, 10.0)
 
-	groundBodyDef := box2d.MakeB2BodyDef()
-	groundBodyDef.Position.Set(40.0, 10.0)
+		groundShape := box2d.MakeB2PolygonShape()
+		groundShape.SetAsBox(35.0, 3.0)
 
-	groundShape := box2d.MakeB2PolygonShape()
-	groundShape.SetAsBox(35.0, 3.0)
+		groundFixtureDef := box2d.MakeB2FixtureDef()
+		groundFixtureDef.Density = 0.0
+		groundFixtureDef.Friction = 1.0
+		groundFixtureDef.Shape = &groundShape
 
-	groundFixtureDef := box2d.MakeB2FixtureDef()
-	groundFixtureDef.Density = 0.0
-	groundFixtureDef.Friction = 1.0
-	groundFixtureDef.Shape = &groundShape
+		groundBody := world.CreateBody(&groundBodyDef)
+		groundBody.CreateFixtureFromDef(&groundFixtureDef)
+		bodies = append(bodies, groundBody)
 
-	groundBody := world.CreateBody(&groundBodyDef)
-	groundBody.CreateFixtureFromDef(&groundFixtureDef)
+		playerBodyDef := box2d.MakeB2BodyDef()
+		playerBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
+		playerBodyDef.Position.Set(23.0, 23.0)
 
-	playerBodyDef := box2d.MakeB2BodyDef()
-	playerBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
-	playerBodyDef.Position.Set(23.0, 23.0)
+		playerShape := box2d.MakeB2PolygonShape()
+		playerShape.SetAsBox(1.0, 2.0)
 
-	playerShape := box2d.MakeB2PolygonShape()
-	playerShape.SetAsBox(1.0, 2.0)
+		playerFixtureDef := box2d.MakeB2FixtureDef()
+		playerFixtureDef.Density = 1.0
+		playerFixtureDef.Friction = 0.8
+		playerFixtureDef.Shape = &playerShape
 
-	playerFixtureDef := box2d.MakeB2FixtureDef()
-	playerFixtureDef.Density = 1.0
-	playerFixtureDef.Friction = 0.8
-	playerFixtureDef.Shape = &playerShape
+		playerB2Body := world.CreateBody(&playerBodyDef)
+		playerB2Body.CreateFixtureFromDef(&playerFixtureDef)
+		playerB2Body.SetFixedRotation(true)
+		bodies = append(bodies, playerB2Body)
+		playerBody = playerB2Body
+	}
 
-	playerBody := world.CreateBody(&playerBodyDef)
-	playerBody.CreateFixtureFromDef(&playerFixtureDef)
-	playerBody.SetFixedRotation(true)
+	// filter out static box2d bodies - no reason, trying to copy them to a separate box2d world to simulate paths of thrown objects
+	staticBodies := []*box2d.B2Body{}
+	{
+		for _, body := range bodies {
+			// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
+			if body.GetType() == box2d.B2BodyType.B2_staticBody {
+				staticBodies = append(staticBodies, body)
+			}
+		}
+		// log.Println("Static body count: ", len(staticBodies))
+		futureSimWorld := box2d.MakeB2World(gravityVector)
+		for _, body := range staticBodies {
+			// copy body
+			bodyDef := box2d.MakeB2BodyDef()
+			bodyDef.Type = body.GetType()
+			bodyDef.Position = body.GetPosition()
 
-	bodies := []*box2d.B2Body{groundBody, playerBody}
+			body := futureSimWorld.CreateBody(&bodyDef)
+			for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
+				// TODO: test
+				body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
+			}
+		}
+	}
 
 	for !window.Closed() {
 
@@ -127,31 +156,6 @@ func run() {
 		}
 
 		world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
-
-		{
-			// filter out static box2d bodies - no reason, trying to copy them to a separate box2d world to simulate paths of thrown objects
-			staticBodies := []*box2d.B2Body{}
-			for _, body := range bodies {
-				// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
-				if body.GetType() == box2d.B2BodyType.B2_staticBody {
-					staticBodies = append(staticBodies, body)
-				}
-			}
-			// log.Println("Static body count: ", len(staticBodies))
-			futureSimWorld := box2d.MakeB2World(gravityVector)
-			for _, body := range staticBodies {
-				// copy body
-				bodyDef := box2d.MakeB2BodyDef()
-				bodyDef.Type = body.GetType()
-				bodyDef.Position = body.GetPosition()
-
-				body := futureSimWorld.CreateBody(&bodyDef)
-				for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
-					// TODO: test
-					body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
-				}
-			}
-		}
 
 		// game rendering
 		window.Clear(colornames.Beige)
