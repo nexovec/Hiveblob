@@ -12,10 +12,12 @@ import (
 	// beep "github.com/faiface/beep"
 	box2d "github.com/E4/box2d"
 	pixelutils "github.com/dusk125/pixelutils"
+
+	// cb "github.com/emirpasic/gods/queues/circularbuffer"
+
 	pixel "github.com/faiface/pixel"
 	imdraw "github.com/faiface/pixel/imdraw"
 	pixelgl "github.com/faiface/pixel/pixelgl"
-
 	cobra "github.com/spf13/cobra"
 )
 
@@ -28,6 +30,7 @@ var DRAW_PHYSICS_OBJ_OUTLINES = true
 var VELOCITY_ITERATIONS int = 6
 var POSITION_ITERATIONS int = 2
 var SPRINT_FORCE float64 = 1400.0
+var BOX2D_RENDERING_SCALE float64 = 10.0
 
 type LaunchOptions struct {
 	verbose        bool
@@ -67,7 +70,6 @@ func run() {
 
 	ticker := pixelutils.NewTicker(60)
 
-	BOX2D_RENDERING_SCALE := 10.0
 	transform := pixel.IM.Scaled(pixel.ZV, BOX2D_RENDERING_SCALE)
 
 	// set-up physics
@@ -75,8 +77,12 @@ func run() {
 		X: 0.0,
 		Y: -100.0}
 	world := box2d.MakeB2World(gravityVector)
+	lookforwardWorld := box2d.MakeB2World(gravityVector)
 	bodies := []*box2d.B2Body{}
-	var playerBody *box2d.B2Body
+	var (
+		playerBody     *box2d.B2Body
+		projectileBody *box2d.B2Body
+	)
 	{
 		groundBodyDef := box2d.MakeB2BodyDef()
 		groundBodyDef.Position.Set(40.0, 10.0)
@@ -110,32 +116,93 @@ func run() {
 		playerB2Body.SetFixedRotation(true)
 		bodies = append(bodies, playerB2Body)
 		playerBody = playerB2Body
+
+		projectileBodyDef := box2d.MakeB2BodyDef()
+		projectileBodyDef.Type = box2d.B2BodyType.B2_dynamicBody
+		projectileBodyDef.Position.Set(23.0, 25.0)
+
+		projectileShape := box2d.MakeB2PolygonShape()
+		projectileShape.SetAsBox(1.0, 1.0)
+
+		projectileBody = lookforwardWorld.CreateBody(&projectileBodyDef)
+		// projectileBody := world.CreateBody(&projectileBodyDef)
+		// shape, ok := projectileShape.(box2d.B2ShapeInterface)
+		// if ok != nil {
+		// 	panic("oof")
+		// }
+		projectileBody.CreateFixture(&projectileShape, 1.0)
+		bodies = append(bodies, projectileBody)
 	}
 
-	// filter out static box2d bodies - no reason, trying to copy them to a separate box2d world to simulate paths of thrown objects
-	staticBodies := []*box2d.B2Body{}
-	{
-		for _, body := range bodies {
-			// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
-			if body.GetType() == box2d.B2BodyType.B2_staticBody {
-				staticBodies = append(staticBodies, body)
-			}
-		}
-		// log.Println("Static body count: ", len(staticBodies))
-		futureSimWorld := box2d.MakeB2World(gravityVector)
-		for _, body := range staticBodies {
-			// copy body
-			bodyDef := box2d.MakeB2BodyDef()
-			bodyDef.Type = body.GetType()
-			bodyDef.Position = body.GetPosition()
+	BUFFERED_PROJECTILE_POSITIONS := 10
+	PROJECTILE_SIMULATION_SKIP_IN_TICKS := 6
+	impulse := box2d.MakeB2Vec2(300.0, 255.0)
+	projectileBody.ApplyLinearImpulseToCenter(impulse, true)
+	projectilePositionsBuffer := []box2d.B2Vec2{}
+	for i := 0; i < BUFFERED_PROJECTILE_POSITIONS; i++ {
+		timestep := ticker.TargetFrametime().Seconds() * float64(PROJECTILE_SIMULATION_SKIP_IN_TICKS)
+		lookforwardWorld.Step(timestep, 6, 2)
+		projectilePositionsBuffer = append(projectilePositionsBuffer, projectileBody.GetPosition())
 
-			body := futureSimWorld.CreateBody(&bodyDef)
-			for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
-				// TODO: test
-				body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
-			}
-		}
+		// lookforwardWorld.Step(0.1, 6, 2)
 	}
+
+	// simulate projectile path
+	// staticBodies := []*box2d.B2Body{}
+	// simulatedStaticBodies := []*box2d.B2Body{}
+	// BUFFERED_PROJECTILE_POSITIONS := 50
+	// projectileBodyTemporalBuffer := cb.New(BUFFERED_PROJECTILE_POSITIONS)
+	// {
+	// 	// // filter out static box2d bodies
+	// 	// for _, body := range bodies {
+	// 	// 	// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
+	// 	// 	if body.GetType() == box2d.B2BodyType.B2_staticBody {
+	// 	// 		staticBodies = append(staticBodies, body)
+	// 	// 	}
+	// 	// }
+	// 	// log.Println("Static body count: ", len(staticBodies))
+	// 	futureSimWorld := box2d.MakeB2World(gravityVector)
+
+	// 	// populate static bodies into a separate box2d world
+	// 	// for _, body := range staticBodies {
+	// 	// 	bodyDef := box2d.MakeB2BodyDef()
+	// 	// 	bodyDef.Type = body.GetType()
+	// 	// 	bodyDef.Position = body.GetPosition()
+
+	// 	// 	body := futureSimWorld.CreateBody(&bodyDef)
+	// 	// 	for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
+	// 	// 		// TODO: test
+	// 	// 		body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
+	// 	// 	}
+	// 	// 	simulatedStaticBodies = append(simulatedStaticBodies, body)
+	// 	// }
+
+	// 	// projectileShape := box2d.MakeB2CircleShape()
+	// 	// projectileShape.M_radius = 0.3
+	// 	// projectileShape := box2d.MakeB2PolygonShape()
+	// 	// projectileShape.SetAsBox(1.0, 1.0)
+
+	// 	// projectileBody := futureSimWorld.CreateBody(&projectileBodyDef)
+	// 	// projectileBody.CreateFixture(&projectileShape, 1.0)
+	// 	// projectileBody.GetFixtureList().SetFriction(0.1) // FIXME: only does one fixture
+	// 	// projectileBody.M_xf.Set(box2d.B2Vec2{25.0, 25.0}, 0.0)
+	// 	// bodies = append(bodies, projectileBody)
+	// 	// v := box2d.MakeB2Vec2(0.0, 255.0)
+	// 	// projectileBody.SetLinearVelocity(v)
+	// 	// projectileBody.ApplyLinearImpulseToCenter(v, true)
+
+	// 	// 	// simulate a projectile
+	// 	// 	// @nocheckin fix projectile rendering first
+	// 	// 	for i := 0; i < BUFFERED_PROJECTILE_POSITIONS; i++ {
+	// 	// 		projectileBodyDef.Position = projectileBody.GetPosition()
+	// 	// 		b := futureSimWorld.CreateBody(&projectileBodyDef)
+	// 	// 		b.CreateFixture(&projectileShape, 1.0)
+	// 	// 		projectileBodyTemporalBuffer.Enqueue(projectileBody)
+
+	// 	// 		tgtFrametime := ticker.TargetFrametime()
+	// 	// 		futureSimWorld.Step(float64(tgtFrametime), 6, 2)
+	// 	// 	}
+	// }
 
 	for !window.Closed() {
 
@@ -174,27 +241,20 @@ func run() {
 			// render box2d body outlines
 			ctx.Color = colornames.Black
 			for _, body := range bodies {
-				DEBUG_fixture := body.GetFixtureList()
-				if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
-					shape := DEBUG_fixture.GetShape()
-					polygon := shape.(*box2d.B2PolygonShape)
-					vertices := polygon.M_vertices
-					// ctx.Reset()
-					for i := 0; i < polygon.M_count; i++ {
-						vertex := vertices[i]
-						nextVertex := vertices[(i+1)%polygon.M_count]
-						position := body.GetWorldPoint(vertex)
-						nextPosition := body.GetWorldPoint(nextVertex)
-						p1 := pixel.V(position.X, position.Y)
-						p2 := pixel.V(nextPosition.X, nextPosition.Y)
-						ctx.Push(p1, p2)
-						ctx.Line(5.0 / BOX2D_RENDERING_SCALE)
-					}
-					ctx.Draw(window)
-				} else {
-					panic("Not implemented!")
-				}
+				// for _, body := range simulatedStaticBodies { // FIXME: crashes, why
+				drawBox2dBodyOutline(body, ctx)
 			}
+			for _, position := range projectilePositionsBuffer {
+				pos := pixel.Vec{X: position.X, Y: position.Y}
+				ctx.Push(pos)
+				ctx.Circle(0.2, 0.0)
+			}
+			// for it := projectileBodyTemporalBuffer.Iterator(); it.Next(); {
+			// 	body := it.Value()
+			// 	drawBox2dBodyOutline(body.(*box2d.B2Body), ctx)
+			// }
+			ctx.Draw(window)
+
 		}
 
 		// UI goes here
@@ -212,6 +272,31 @@ func run() {
 
 		window.Update()
 		ticker.Wait()
+	}
+}
+
+// NOTE: don't forget to call ctx.draw(window) to blit to your window
+func drawBox2dBodyOutline(body *box2d.B2Body, ctx *imdraw.IMDraw) {
+	DEBUG_fixture := body.GetFixtureList()
+	if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_polygon {
+		shape := DEBUG_fixture.GetShape()
+		polygon := shape.(*box2d.B2PolygonShape)
+		vertices := polygon.M_vertices
+		// ctx.Reset()
+		for i := 0; i < polygon.M_count; i++ {
+			vertex := vertices[i]
+			nextVertex := vertices[(i+1)%polygon.M_count]
+			position := body.GetWorldPoint(vertex)
+			nextPosition := body.GetWorldPoint(nextVertex)
+			p1 := pixel.V(position.X, position.Y)
+			p2 := pixel.V(nextPosition.X, nextPosition.Y)
+			ctx.Push(p1, p2)
+			ctx.Line(5.0 / BOX2D_RENDERING_SCALE)
+		}
+	} else if DEBUG_fixture.GetType() == box2d.B2Shape_Type.E_circle {
+		ctx.Circle(DEBUG_fixture.GetShape().GetRadius(), 5.0)
+	} else {
+		panic("Not implemented!")
 	}
 }
 
