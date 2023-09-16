@@ -11,6 +11,7 @@ import (
 
 	// beep "github.com/faiface/beep"
 	box2d "github.com/E4/box2d"
+	// tilepix "github.com/bcvery1/tilepix"
 	pixelutils "github.com/dusk125/pixelutils"
 
 	// cb "github.com/emirpasic/gods/queues/circularbuffer"
@@ -31,6 +32,7 @@ var VELOCITY_ITERATIONS int = 6
 var POSITION_ITERATIONS int = 2
 var SPRINT_FORCE float64 = 1400.0
 var BOX2D_RENDERING_SCALE float64 = 10.0
+var ticker *pixelutils.Ticker
 
 type LaunchOptions struct {
 	verbose        bool
@@ -44,6 +46,18 @@ var launchOptions = struct {
 	fullscreen  bool
 }{}
 
+func simulateProjectilePath(projectileBody *box2d.B2Body) (projectilePositionsBuffer []box2d.B2Vec2) {
+	lookforwardWorld := projectileBody.M_world
+	BUFFERED_PROJECTILE_POSITIONS := 10
+	PROJECTILE_SIMULATION_SKIP_IN_TICKS := 6
+	projectilePositionsBuffer = []box2d.B2Vec2{}
+	for i := 0; i < BUFFERED_PROJECTILE_POSITIONS; i++ {
+		timestep := ticker.TargetFrametime().Seconds() * float64(PROJECTILE_SIMULATION_SKIP_IN_TICKS)
+		lookforwardWorld.Step(timestep, 6, 2)
+		projectilePositionsBuffer = append(projectilePositionsBuffer, projectileBody.GetPosition())
+	}
+	return
+}
 func run() {
 	windowX := float64(0)
 	windowY := float64(0)
@@ -58,6 +72,12 @@ func run() {
 		panic("Could not create a window")
 	}
 
+	// Load and initialise the map.
+	// m, err := tilepix.ReadFile("map1.tmx")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
 	ui := pixelui.NewUI(window, 0)
 	defer ui.Destroy()
 
@@ -68,7 +88,7 @@ func run() {
 	// ui.AddTTFFont()
 	// imgui.PushFont(ui.fonts.)
 
-	ticker := pixelutils.NewTicker(60)
+	ticker = pixelutils.NewTicker(60)
 
 	transform := pixel.IM.Scaled(pixel.ZV, BOX2D_RENDERING_SCALE)
 
@@ -125,27 +145,11 @@ func run() {
 		projectileShape.SetAsBox(1.0, 1.0)
 
 		projectileBody = lookforwardWorld.CreateBody(&projectileBodyDef)
-		// projectileBody := world.CreateBody(&projectileBodyDef)
-		// shape, ok := projectileShape.(box2d.B2ShapeInterface)
-		// if ok != nil {
-		// 	panic("oof")
-		// }
 		projectileBody.CreateFixture(&projectileShape, 1.0)
 		bodies = append(bodies, projectileBody)
 	}
 
-	BUFFERED_PROJECTILE_POSITIONS := 10
-	PROJECTILE_SIMULATION_SKIP_IN_TICKS := 6
-	impulse := box2d.MakeB2Vec2(300.0, 255.0)
-	projectileBody.ApplyLinearImpulseToCenter(impulse, true)
-	projectilePositionsBuffer := []box2d.B2Vec2{}
-	for i := 0; i < BUFFERED_PROJECTILE_POSITIONS; i++ {
-		timestep := ticker.TargetFrametime().Seconds() * float64(PROJECTILE_SIMULATION_SKIP_IN_TICKS)
-		lookforwardWorld.Step(timestep, 6, 2)
-		projectilePositionsBuffer = append(projectilePositionsBuffer, projectileBody.GetPosition())
-
-		// lookforwardWorld.Step(0.1, 6, 2)
-	}
+	// projectileBody = nil
 
 	// simulate projectile path
 	// staticBodies := []*box2d.B2Body{}
@@ -206,9 +210,16 @@ func run() {
 
 	for !window.Closed() {
 
-		// game update
 		ticker.Tick()
 		dt := ticker.Deltat()
+
+		// game update
+		// simulate projectile path
+		projectileBody.SetTransform(playerBody.GetPosition(), 0.0)
+		projectileBody.SetLinearVelocity(box2d.B2Vec2{})
+		impulse := box2d.MakeB2Vec2(300.0, 255.0)
+		projectileBody.ApplyLinearImpulseToCenter(impulse, true)
+		projectilePositionsBuffer := simulateProjectilePath(projectileBody)
 		// log.Printf("Tick delta time: %5f", dt)
 
 		// handle controls
@@ -256,6 +267,11 @@ func run() {
 			ctx.Draw(window)
 
 		}
+
+		// Draw all layers to the window.
+		// if err := m.DrawAll(window, colornames.White, pixel.IM); err != nil {
+		// 	panic(err)
+		// }
 
 		// UI goes here
 		ui.NewFrame()
