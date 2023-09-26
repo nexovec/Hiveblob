@@ -11,6 +11,7 @@ import (
 
 	// beep "github.com/faiface/beep"
 	box2d "github.com/E4/box2d"
+
 	// tilepix "github.com/bcvery1/tilepix"
 	pixelutils "github.com/dusk125/pixelutils"
 
@@ -152,34 +153,37 @@ func run() {
 	// projectileBody = nil
 
 	// simulate projectile path
-	// staticBodies := []*box2d.B2Body{}
-	// simulatedStaticBodies := []*box2d.B2Body{}
-	// BUFFERED_PROJECTILE_POSITIONS := 50
-	// projectileBodyTemporalBuffer := cb.New(BUFFERED_PROJECTILE_POSITIONS)
-	// {
-	// 	// // filter out static box2d bodies
-	// 	// for _, body := range bodies {
-	// 	// 	// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
-	// 	// 	if body.GetType() == box2d.B2BodyType.B2_staticBody {
-	// 	// 		staticBodies = append(staticBodies, body)
-	// 	// 	}
-	// 	// }
-	// 	// log.Println("Static body count: ", len(staticBodies))
-	// 	futureSimWorld := box2d.MakeB2World(gravityVector)
+	staticBodies := []*box2d.B2Body{}
 
-	// 	// populate static bodies into a separate box2d world
-	// 	// for _, body := range staticBodies {
-	// 	// 	bodyDef := box2d.MakeB2BodyDef()
-	// 	// 	bodyDef.Type = body.GetType()
-	// 	// 	bodyDef.Position = body.GetPosition()
+	// filter out static box2d bodies
+	for _, body := range bodies {
+		// fmt.Println(body.GetType() == box2d.B2BodyType.B2_staticBody)
+		if body.GetType() == box2d.B2BodyType.B2_staticBody {
+			staticBodies = append(staticBodies, body)
+		}
+	}
+	// for _, body := range staticBodies {
+	// }
+	// log.Println("Static body count: ", len(staticBodies))
+	futureSimWorld := box2d.MakeB2World(gravityVector)
+	simulatedStaticBodies := []*box2d.B2Body{}
 
-	// 	// 	body := futureSimWorld.CreateBody(&bodyDef)
-	// 	// 	for fixture := body.GetFixtureList(); fixture != nil; fixture.GetNext() {
-	// 	// 		// TODO: test
-	// 	// 		body.CreateFixture(fixture.GetShape(), fixture.GetDensity())
-	// 	// 	}
-	// 	// 	simulatedStaticBodies = append(simulatedStaticBodies, body)
-	// 	// }
+	// populate static bodies into a separate box2d world
+	for _, body := range staticBodies {
+		bodyDef := box2d.MakeB2BodyDef()
+		bodyDef.Type = body.GetType()
+		bodyDef.Position = body.GetPosition()
+
+		lookforwardCopyOfBody := futureSimWorld.CreateBody(&bodyDef)
+		for fixture := body.GetFixtureList(); fixture != nil; fixture = fixture.GetNext() {
+			// TODO: test
+			fixture := lookforwardCopyOfBody.CreateFixture(fixture.GetShape().Clone(), fixture.GetDensity())
+			_ = fixture
+			// fixture.(box2d.B2Fixture)
+			continue
+		}
+		simulatedStaticBodies = append(simulatedStaticBodies, lookforwardCopyOfBody)
+	}
 
 	// 	// projectileShape := box2d.MakeB2CircleShape()
 	// 	// projectileShape.M_radius = 0.3
@@ -251,8 +255,9 @@ func run() {
 			}
 			// render box2d body outlines
 			ctx.Color = colornames.Black
-			for _, body := range bodies {
-				// for _, body := range simulatedStaticBodies { // FIXME: crashes, why
+			// for _, body := range bodies {
+			// for _, body := range staticBodies {
+			for body := lookforwardWorld.GetBodyList(); body != nil; body = body.GetNext() {
 				drawBox2dBodyOutline(body, ctx)
 			}
 			for _, position := range projectilePositionsBuffer {
